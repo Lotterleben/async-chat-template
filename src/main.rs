@@ -34,7 +34,7 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
             ClientEvent::Connect(c) => { broker.clients.insert(c.name.clone(), c); },
             ClientEvent::Message { name: sender_name, msg } => {
                 for (_, c) in broker.clients.iter().filter(|(name, _)| **name != sender_name) {
-                    c.sender.send(format!("{}: {}\n", sender_name, msg)).await 
+                    c.sender.send(format!("{}: {}\n", sender_name, msg)).await
                 }
             },
             ClientEvent::Disconnect { name } => {
@@ -50,13 +50,7 @@ async fn client(mut stream: TcpStream, broker_connection: Sender<ClientEvent>) -
     // read its name line
     // register it with its broker
 
-    let _incoming_task = task::spawn(async move {
-        //
-    });
 
-    let _outgoing_task = task::spawn(async move {
-        //
-    });
 
     Ok(())
 }
