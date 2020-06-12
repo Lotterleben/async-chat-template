@@ -56,12 +56,23 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
 }
 
 async fn client(mut stream: TcpStream, broker_connection: Sender<ClientEvent>) -> io::Result<()> {
+    println!("client connected");
 
-    // Accept a client
     // read its name line
+    let mut buffer = String::new();
+    match stream.read_to_string(&mut buffer).await {
+        Ok(_) => println!("their name is {}", buffer),
+        Err(e) => {
+            println!("couldn't read name. error {}. returning.", e);
+            return Err(e);
+        }
+    }
+
     // register it with its broker
 
+    // start task for incoming messages
 
+    // start task for outgoing messages
 
     Ok(())
 }
