@@ -44,7 +44,7 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
     }
 }
 
-async fn client(mut stream: TcpStream, broker_connection: Sender<ClientEvent>) -> io::Result<()> {
+async fn client_handler(mut stream: TcpStream, broker_sender: Sender<ClientEvent>) -> io::Result<()> {
 
     // Accept a client
     // read its name line
