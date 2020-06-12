@@ -34,6 +34,7 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
     while let Some(event) = incoming.next().await {
         match event {
             ClientEvent::Connect(c) => {
+                println!("broker: got connection from client {}", c.name);
                 broker.clients.insert(c.name.clone(), c);
             }
             ClientEvent::Message {
@@ -55,20 +56,30 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
     }
 }
 
+
+// HUH: var name mismatch (broker_connection vs broker_sender in fn call below) is confusing
 async fn client(mut stream: TcpStream, broker_connection: Sender<ClientEvent>) -> io::Result<()> {
-    println!("client connected");
+    println!("client: user connected");
 
     // read its name line
-    let mut buffer = String::new();
-    match stream.read_to_string(&mut buffer).await {
-        Ok(_) => println!("their name is {}", buffer),
+    let mut user_name = String::new();
+    match stream.read_to_string(&mut user_name).await {
+        Ok(_) => println!("client: their name is {}", user_name),
         Err(e) => {
             println!("couldn't read name. error {}. returning.", e);
             return Err(e);
         }
     }
 
-    // register it with its broker
+    // register client with its broker
+    // TODO only do that if client creation was successful
+    let user_name_copy = user_name.clone();
+    let (client_sender, client_receiver) = channel(1);
+    let user = Client {name: user_name, sender: client_sender};
+    let connect_event = ClientEvent::Connect(user);
+    broker_connection.send(connect_event).await;
+    println!("client: registered {:?} with the broker", user_name_copy);
+
 
     // start task for incoming messages
 
