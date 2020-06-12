@@ -58,9 +58,11 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
     }
 }
 
-
 // HUH: var name mismatch (broker_connection vs broker_sender in fn call below) is confusing
-async fn client_handler(mut stream: TcpStream, broker_connection: Sender<ClientEvent>) -> io::Result<()> {
+async fn client_handler(
+    mut stream: TcpStream,
+    broker_connection: Sender<ClientEvent>,
+) -> io::Result<()> {
     println!("[client] user connected");
     let buf_read = BufReader::new(stream.clone());
     let mut lines = buf_read.lines();
@@ -76,18 +78,25 @@ async fn client_handler(mut stream: TcpStream, broker_connection: Sender<ClientE
         match lines.next().await {
             Some(Ok(input)) => {
                 user_name = input;
-                println!("[client] their name is {}", user_name);},
-            _ => println!("[client] wtf")
+                println!("[client] their name is {}", user_name);
+            }
+            _ => println!("[client] wtf"),
         }
 
         // register client with its broker
-        let user = Client { name: user_name.clone(), sender: client_sender };
+        let user = Client {
+            name: user_name.clone(),
+            sender: client_sender,
+        };
         let connect_event = ClientEvent::Connect(user);
         broker_connection.send(connect_event).await;
         println!("[client] registered {:?} with the broker", user_name);
 
         while let Some(Ok(line)) = lines.next().await {
-            let message_event = ClientEvent::Message{name: user_name.clone(), msg : line};
+            let message_event = ClientEvent::Message {
+                name: user_name.clone(),
+                msg: line,
+            };
             broker_connection.send(message_event).await;
         }
     });
