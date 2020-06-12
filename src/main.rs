@@ -61,33 +61,46 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
 // HUH: var name mismatch (broker_connection vs broker_sender in fn call below) is confusing
 async fn client(mut stream: TcpStream, broker_connection: Sender<ClientEvent>) -> io::Result<()> {
     println!("client: user connected");
+    let buf_read = BufReader::new(stream.clone());
+    let mut lines = buf_read.lines();
+    let mut input = String::new();
 
     // read its name line
-    let mut user_name = String::new();
-    match stream.read_to_string(&mut user_name).await {
-        Ok(_) => println!("client: their name is {}", user_name),
-        Err(e) => {
-            println!("couldn't read name. error {}. returning.", e);
-            return Err(e);
-        }
+    match lines.next().await {
+        Some(Ok(user_name)) =>  {
+            input = user_name.clone();
+            println!("client: their name is {}", user_name);},
+        _ => println!("wtf")
     }
 
     // register client with its broker
     // TODO only do that if client creation was successful
     let (client_sender, client_receiver) = channel(1);
-    let user = Client { name: user_name.clone(), sender: client_sender };
+    let user = Client { name: input.clone(), sender: client_sender };
     let connect_event = ClientEvent::Connect(user);
     broker_connection.send(connect_event).await;
-    println!("client: registered {:?} with the broker", user_name);
-
+    println!("client: registered {:?} with the broker", input);
 
     // start task for incoming messages
+    // HUH: why the move in the given example?
+    // -> wrote it without and got compiler error explaining why move was necessary.
+    // Helpful learning experience!
+/*
+while let Some(Ok(line)) = lines.next().await {
+    //...
+    println!("xoxo");
+}
+*/
+    task::spawn(async move {
+        println!("implement me");
+    });
 
     // start task for outgoing messages
 
     Ok(())
 }
 
+// HUH: supplying a simple chat client to test would be nice (since we know that nc is risky)
 fn main() -> io::Result<()> {
     task::block_on(async {
         let listener = TcpListener::bind("127.0.0.1:8080").await?;
