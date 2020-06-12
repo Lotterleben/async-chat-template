@@ -11,6 +11,8 @@ use async_std::sync::{Receiver, Sender};
 
 use std::collections::HashMap;
 
+const DISCONNECT_STR: &str = "disconnect";
+
 struct Client {
     name: String,
     // HUH: what is this for? why does it contain a string and not a ClientEvent as with broker_connection?
@@ -93,11 +95,25 @@ async fn client_handler(
         println!("[client] registered {:?} with the broker", user_name);
 
         while let Some(Ok(line)) = lines.next().await {
-            let message_event = ClientEvent::Message {
-                name: user_name.clone(),
-                msg: line,
-            };
-            broker_connection.send(message_event).await;
+            match line.as_str() {
+                DISCONNECT_STR => {
+                    broker_connection
+                        .send(ClientEvent::Disconnect {
+                            name: user_name.clone(),
+                        })
+                        .await;
+                    println!("[client] {} disconnected.", user_name);
+                    break; // we're done, jump out of the loop
+                }
+                _ => {
+                    broker_connection
+                        .send(ClientEvent::Message {
+                            name: user_name.clone(),
+                            msg: line,
+                        })
+                        .await
+                }
+            }
         }
     });
 
@@ -110,6 +126,7 @@ async fn client_handler(
         }
     });
 
+    // HUH: how do I stop my spawned tasks after disconnect? Do I need to?
     Ok(())
 }
 
