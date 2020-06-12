@@ -34,7 +34,7 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
             ClientEvent::Connect(c) => { broker.clients.insert(c.name.clone(), c); },
             ClientEvent::Message { name: sender_name, msg } => {
                 for (_, c) in broker.clients.iter().filter(|(name, _)| **name != sender_name) {
-                    c.sender.send(format!("{}: {}\n", sender_name, msg)).await 
+                    c.sender.send(format!("{}: {}\n", sender_name, msg)).await
                 }
             },
             ClientEvent::Disconnect { name } => {
