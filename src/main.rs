@@ -13,6 +13,7 @@ use std::collections::HashMap;
 
 struct Client {
     name: String,
+    // HUH: what is this for? why does it contain a string and not a ClientEvent as with broker_connection?
     sender: Sender<String>,
 }
 
