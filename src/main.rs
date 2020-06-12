@@ -60,64 +60,76 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
     }
 }
 
+async fn user_to_broker(
+    stream: TcpStream,
+    client_sender: Sender<String>,
+    broker_sender: Sender<ClientEvent>,
+) {
+    let buf_read = BufReader::new(stream);
+    let mut lines = buf_read.lines();
+    let mut user_name = String::new();
+    // read the name line
+    match lines.next().await {
+        Some(Ok(input)) => {
+            user_name = input;
+            println!("[client] their name is {}", user_name);
+        }
+        _ => println!("[client] wtf"),
+    }
+
+    // register client with its broker
+    let user = Client {
+        name: user_name.clone(),
+        sender: client_sender,
+    };
+
+    let connect_event = ClientEvent::Connect(user);
+    broker_sender.send(connect_event).await;
+    println!("[client] registered {:?} with the broker", user_name);
+
+    while let Some(Ok(line)) = lines.next().await {
+        match line.as_str() {
+            DISCONNECT_STR => {
+                broker_sender
+                    .send(ClientEvent::Disconnect {
+                        name: user_name.clone(),
+                    })
+                    .await;
+                println!("[client] {} disconnected.", user_name);
+                break; // we're done, jump out of the loop
+            }
+            _ => {
+                broker_sender
+                    .send(ClientEvent::Message {
+                        name: user_name.clone(),
+                        msg: line,
+                    })
+                    .await
+            }
+        }
+    }
+}
+
 // HUH: var name mismatch (broker_connection vs broker_sender in fn call below) is confusing
 async fn client_handler(
     mut stream: TcpStream,
     broker_connection: Sender<ClientEvent>,
 ) -> io::Result<()> {
     println!("[client] user connected");
-    let buf_read = BufReader::new(stream.clone());
-    let mut lines = buf_read.lines();
-    let mut user_name = String::new();
     let (client_sender, mut client_receiver) = channel(1);
 
     // pass messages from the user on to the broker
+
+    task::spawn(user_to_broker(
+        stream.clone(),
+        client_sender,
+        broker_connection,
+    ));
+
+    // pass messages from the broker on to the user
     // HUH: why the move in the given example?
     // -> wrote it without and got compiler error explaining why move was necessary.
     // Helpful learning experience!
-    task::spawn(async move {
-        // read the name line
-        match lines.next().await {
-            Some(Ok(input)) => {
-                user_name = input;
-                println!("[client] their name is {}", user_name);
-            }
-            _ => println!("[client] wtf"),
-        }
-
-        // register client with its broker
-        let user = Client {
-            name: user_name.clone(),
-            sender: client_sender,
-        };
-        let connect_event = ClientEvent::Connect(user);
-        broker_connection.send(connect_event).await;
-        println!("[client] registered {:?} with the broker", user_name);
-
-        while let Some(Ok(line)) = lines.next().await {
-            match line.as_str() {
-                DISCONNECT_STR => {
-                    broker_connection
-                        .send(ClientEvent::Disconnect {
-                            name: user_name.clone(),
-                        })
-                        .await;
-                    println!("[client] {} disconnected.", user_name);
-                    break; // we're done, jump out of the loop
-                }
-                _ => {
-                    broker_connection
-                        .send(ClientEvent::Message {
-                            name: user_name.clone(),
-                            msg: line,
-                        })
-                        .await
-                }
-            }
-        }
-    });
-
-    // pass messages from the broker on to the user
     task::spawn(async move {
         while let Some(chat_msg) = client_receiver.next().await {
             print!("{}", chat_msg);
