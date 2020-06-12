@@ -73,12 +73,11 @@ async fn client(mut stream: TcpStream, broker_connection: Sender<ClientEvent>) -
 
     // register client with its broker
     // TODO only do that if client creation was successful
-    let user_name_copy = user_name.clone();
     let (client_sender, client_receiver) = channel(1);
-    let user = Client {name: user_name, sender: client_sender};
+    let user = Client { name: user_name.clone(), sender: client_sender };
     let connect_event = ClientEvent::Connect(user);
     broker_connection.send(connect_event).await;
-    println!("client: registered {:?} with the broker", user_name_copy);
+    println!("client: registered {:?} with the broker", user_name);
 
 
     // start task for incoming messages
