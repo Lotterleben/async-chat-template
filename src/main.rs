@@ -67,7 +67,7 @@ fn main() -> io::Result<()> {
         task::spawn(broker(broker_receiver));
 
         while let Some(stream) = incoming.next().await {
-            // fill in
+            client(stream?, broker_sender.clone()).await?;
         }
         Ok(())
     })
