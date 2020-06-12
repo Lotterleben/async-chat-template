@@ -35,7 +35,7 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
     while let Some(event) = incoming.next().await {
         match event {
             ClientEvent::Connect(c) => {
-                println!("broker: got connection from client {}", c.name);
+                println!("[broker] got connection from client {}", c.name);
                 broker.clients.insert(c.name.clone(), c);
             }
             ClientEvent::Message {
@@ -59,8 +59,10 @@ async fn broker(mut incoming: Receiver<ClientEvent>) {
 
 
 // HUH: var name mismatch (broker_connection vs broker_sender in fn call below) is confusing
+// TODO: rename to client_handler
+// TOOO: problem: if 2 clients connect and *then* staetheir names weird behaviour happens
 async fn client(mut stream: TcpStream, broker_connection: Sender<ClientEvent>) -> io::Result<()> {
-    println!("client: user connected");
+    println!("[client] user connected");
     let buf_read = BufReader::new(stream.clone());
     let mut lines = buf_read.lines();
     let mut user_name = String::new();
@@ -69,30 +71,37 @@ async fn client(mut stream: TcpStream, broker_connection: Sender<ClientEvent>) -
     match lines.next().await {
         Some(Ok(input)) =>  {
             user_name = input;
-            println!("client: their name is {}", user_name);},
-        _ => println!("client: wtf")
+            println!("[client] their name is {}", user_name);},
+        _ => println!("[client] wtf")
     }
 
     // register client with its broker
     // TODO only do that if client creation was successful
-    let (client_sender, client_receiver) = channel(1);
+    let (client_sender, mut client_receiver) = channel(1);
     let user = Client { name: user_name.clone(), sender: client_sender };
     let connect_event = ClientEvent::Connect(user);
     broker_connection.send(connect_event).await;
-    println!("client: registered {:?} with the broker", user_name);
+    println!("[client] registered {:?} with the broker", user_name);
 
-    // start task for incoming messages
+    // pass messages from the user on to the broker
     // HUH: why the move in the given example?
     // -> wrote it without and got compiler error explaining why move was necessary.
     // Helpful learning experience!
     task::spawn(async move {
         while let Some(Ok(line)) = lines.next().await {
-            let message = ClientEvent::Message{name: user_name.clone(), msg : line};
-            broker_connection.send(message).await;
+            let message_event = ClientEvent::Message{name: user_name.clone(), msg : line};
+            broker_connection.send(message_event).await;
         }
     });
 
-    // start task for outgoing messages
+    // pass messages from the broker on to the user
+    task::spawn(async move {
+        while let Some(chat_msg) = client_receiver.next().await {
+            println!("{}", chat_msg);
+            // TODO handle reult more gracefully
+            let _ = stream.write_all(chat_msg.as_bytes()).await;
+        }
+    });
 
     Ok(())
 }
